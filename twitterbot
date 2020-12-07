@@ -1,0 +1,73 @@
+import tweepy
+import time
+import re
+
+print('FHFH Bot Engaged', flush=True)
+
+CONSUMER_KEY = 'XXXXXXX'
+CONSUMER_SECRET = 'XXXXXXX'
+ACCESS_KEY = 'XXXXXXX'
+ACCESS_SECRET = 'XXXXXXX'
+KEYWORDS = ['injury', 'line combinations', 'line combos', 'combo', 'line rushes', 'injured', 'hurt', 'signed',
+            'recalled', 'rushes', 'promoted', '#FantasyHockey']
+
+# Team specific tweets, some names will be duplicate. Elias, Hampus Lindholm. will have to figure out how to specify what team.
+
+ANA = [ 'Getzlaf', 'ryan getzlaf', 'Adam Henrique', 'henrique', "Jakob Silfverberg",'silfverberg', 'David Backes', 'backes', 'Rickard Rakell', 'rakell', 'heinen', 'milano', 'grant', 'terry', 'rowney', 'deslauriers', 'max jones', 'steel', 'agozzino', 'fowler', 'lindholm', 'manson', 'shattenkirk', 'larsson', 'curran', 'djoos', 'gibson', 'kesler', 'zegras', 'lundestrom',  ]
+
+
+auth = tweepy.OAuthHandler(CONSUMER_KEY, CONSUMER_SECRET)
+auth.set_access_token(ACCESS_KEY, ACCESS_SECRET)
+api = tweepy.API(auth)
+api_me = api.me()
+bot_name = api_me.screen_name
+
+FILE_NAME = 'last_seen_id.txt'
+
+
+# DEV NOTE: 1270574762461401088 use as ref
+
+def retrieve_last_seen_id(file_name):
+    f_read = open(file_name, 'r')
+    last_seen_id = int(f_read.read().strip())
+    f_read.close()
+    return last_seen_id
+
+
+def store_last_seen_id(last_seen_id, file_name):
+    f_write = open(file_name, 'w')
+    f_write.write(str(last_seen_id))
+    f_write.close()
+    return
+
+
+def retweet_from_timeline():
+    print('RTing...', flush=True)
+    last_seen_id = retrieve_last_seen_id(FILE_NAME)
+    timeline = api.home_timeline(last_seen_id, tweet_mode='extended')
+    for tweets in timeline[::-1]:  # reverse the order
+
+        if tweets.user.screen_name == bot_name:
+            print("Keyword matched, but sent from bot account - SKIPPING!")
+            continue
+
+        print(str(tweets.id) + ' - ' + tweets.full_text)
+        last_seen_id = tweets.id
+        store_last_seen_id(last_seen_id, FILE_NAME)
+        comboregex = re.compile(r'([a-zA-Z]+(-| - | -|- )[a-zA-Z]+(-| - | -|- )[a-zA-Z]+)', re.DOTALL)
+        combo_found = re.findall(comboregex, tweets.full_text)
+
+        # any of the keywords in the tweet, or did we find the regex pattern?
+        if any([keyword.lower() in tweets.full_text.lower() for keyword in KEYWORDS]) or combo_found:
+            try:
+                print("Found Keyword")
+                print('RT')
+                api.update_status('Per @' + tweets.user.screen_name + ' || ' + str(tweets.full_text))
+            except tweepy.TweepError as e:
+                print(e)
+                time.sleep(120)
+
+
+while True:
+    retweet_from_timeline()
+    time.sleep(120)
